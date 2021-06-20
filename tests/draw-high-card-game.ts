@@ -139,6 +139,7 @@ export class DrawHighCard implements Simulator {
     private _playLog: DrawHighCardFullAction[];
     private _currentTurn: number;
     private _rngSeed: number;
+    private _initialHands: Map<Player, number[]>;
 
     /**
      * 
@@ -153,6 +154,11 @@ export class DrawHighCard implements Simulator {
         this._playLog = [];
         this._score = 0;
         this._currentTurn = 0;
+    }
+    restart(): void {
+        this._playLog = [];
+        this._score = 0;
+        this.setHands(this.deepCopyHands(false));
     }
 
     get state(): DrawHighCardState {
@@ -192,12 +198,33 @@ export class DrawHighCard implements Simulator {
     }
 
     /**
+     * make sa deep copy of the hand. usefull to setup initial hand object and
+     * to restart the simulator
+     * @param current if true will copy the current hand, if false
+     * will copy the initial hand
+     * @returns a deep copy of the hand object
+     */
+    private deepCopyHands(current:boolean): Map<Player, number[]> {
+        const hands = current ? this._hands : this._initialHands;
+        const res = new Map<Player, number[]>();
+        for (const player of hands.keys()) {
+            for (const nbr of hands.get(player)) {
+                this._initialHands.get(player).push(nbr);
+            }
+        }
+        return res;
+    }
+
+    /**
      * Setting the players' hands. Very usefull for testing.
      * @param hands the hands to set
      */
     setHands(hands: Map<Player, number[]>): void {
         this._hands = hands;
-        this._currentTurn = 1;
+        if (this._currentTurn < 1) { 
+            this._initialHands = this.deepCopyHands(true); 
+        }
+        this._currentTurn = 1;        
     }
 
     /**
