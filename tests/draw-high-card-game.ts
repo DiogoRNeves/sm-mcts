@@ -1,12 +1,13 @@
 import { Simulator, Player, State, Action, SimultaneousAction } from '../src/sm-mcts'
 import * as hasha from 'hasha'
 
-class DrawHighCardAction implements Action {
+export class DrawHighCardAction implements Action {
     private _value: number;
     
     constructor(value: number) {
         this._value = value;
     }
+
 
     get name(): string {
         return this._value.toString();
@@ -34,7 +35,7 @@ class DrawHighCardAction implements Action {
     
 }
 
-class DrawHighCardFullAction implements SimultaneousAction {
+export class DrawHighCardFullAction implements SimultaneousAction {
     private _actions: Map<Player, DrawHighCardAction>;
 
     constructor(actions: Map<Player, DrawHighCardAction>) {
@@ -79,8 +80,8 @@ class DrawHighCardState implements State {
         return hasha(this.toString());
     }
 
-    get possibleSimultaneousActions(): Set<SimultaneousAction> {
-        const res: Set<SimultaneousAction> = new Set<SimultaneousAction>();
+    get possibleSimultaneousActions(): Set<DrawHighCardFullAction> {
+        const res: Set<DrawHighCardFullAction> = new Set<DrawHighCardFullAction>();
 
         //todo generalize for >2 players
         for (const maxAction of this.getPlayerActions('max')) {
@@ -105,7 +106,7 @@ class DrawHighCardState implements State {
         //TODO add chance event when we implement it
         return `Turn ${this._turn}, score: ${this._score}, hands: ${this._hands}${this._isFinal ? ' DONE!!': ''}`;
     }
-    toJSON(): object {
+    toJSON(): {hands: Map<Player, number[]>, turn: number, score: number, isFinal: boolean} {
         //TODO add chance event when we implement it
         return {
             turn: this._turn,
@@ -155,6 +156,7 @@ export class DrawHighCard implements Simulator {
         this._score = 0;
         this._currentTurn = 0;
     }
+
     restart(): void {
         this._playLog = [];
         this._score = 0;
@@ -185,12 +187,34 @@ export class DrawHighCard implements Simulator {
         this._playLog[this._currentTurn] = simultAction;
     }
 
+    simpleChoose(minPlay: number, maxPlay: number): void {
+        for (const simultAction of this.state.possibleSimultaneousActions) {
+            if (simultAction.actions.get('min').value === minPlay &&
+              simultAction.actions.get('max').value === maxPlay) {
+                this.choose(simultAction);
+                return;
+            }
+        }
+        throw new Error('Play is not available.')
+    }
+
     runSimultaneousAction(): DrawHighCardState {
+        //add to log
         const play: DrawHighCardFullAction = this._playLog[this._currentTurn];
+        //increase turn count
         this._currentTurn++;
+        //remove numbers from players' hands
+        for (const player of play.actions.keys()) {
+            this._removeFromHand(player, play.actions.get(player));
+        }
         //TODO insert the chance thing
+        //adjust the score
         this._score += play.actions.get('max').value - play.actions.get('min').value;
         return this.state;
+    }
+    private _removeFromHand(player, action: DrawHighCardAction) {
+        const i = this._hands.get(player).indexOf(action.value);
+        this._hands.get(player).splice(i,1);
     }
 
     getReward(): number {
@@ -208,8 +232,9 @@ export class DrawHighCard implements Simulator {
         const hands = current ? this._hands : this._initialHands;
         const res = new Map<Player, number[]>();
         for (const player of hands.keys()) {
+            res.set(player, []);
             for (const nbr of hands.get(player)) {
-                this._initialHands.get(player).push(nbr);
+                res.get(player).push(nbr);
             }
         }
         return res;
@@ -232,6 +257,6 @@ export class DrawHighCard implements Simulator {
      * @param numberOfCards cards to be dealt to each player
      */
     drawHands(numberOfCards: number) {
-        throw new Error('Method not implemented.');
+        //throw new Error('Method not implemented.');
     }
 }
