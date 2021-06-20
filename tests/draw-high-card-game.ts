@@ -257,6 +257,6 @@ export class DrawHighCard implements Simulator {
      * @param numberOfCards cards to be dealt to each player
      */
     drawHands(numberOfCards: number) {
-        //throw new Error('Method not implemented.');
+        throw new Error('Method not implemented.');
     }
 }
