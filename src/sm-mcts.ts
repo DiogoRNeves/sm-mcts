@@ -47,6 +47,7 @@ export interface Simulator {
     choose(simultAction: SimultaneousAction): void;
     runSimultaneousAction(): State;
     getReward(): number;
+    restart(): void;
 }
 
 class MonteCarloNode {
@@ -167,6 +168,10 @@ class MonteCarloTree {
 
     get currentNode() { return this._currentNode; }
 
+    backToRoot() {
+        this._currentNode = this._nodes.get(this._rootHash);
+    }
+
     getMostSimulatedFirstChildSimultaneousAction(): SimultaneousAction {
         const root = this._nodes.get(this._rootHash);
         let maxSimulations: number = -1;
@@ -234,6 +239,8 @@ export class SmMCTS {
 
         do {
             this._simulate();
+            this._sim.restart();
+            this._tree.backToRoot();
         } while (this._simulationsRan < targetSimulations || moment().isAfter(targetTime));
 
         return this._tree.getMostSimulatedFirstChildSimultaneousAction();
