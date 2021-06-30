@@ -1,5 +1,4 @@
 import * as moment from 'moment';
-import { rootCertificates } from 'tls';
 
 /**
  * generate a random integer between min and max
@@ -213,7 +212,10 @@ class MonteCarloTree {
     }
 
     update(stateHash: string, vs: number) {
-        this._nodes.get(stateHash).addVisit(vs);
+        const node = this._nodes.get(stateHash);
+        if (node !== undefined){
+            node.addVisit(vs);
+        }
     }
 }
 
