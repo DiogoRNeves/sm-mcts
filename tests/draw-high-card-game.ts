@@ -1,5 +1,6 @@
 import { Simulator, Player, State, Action, SimultaneousAction } from '../src/sm-mcts'
 import * as hasha from 'hasha'
+import * as _ from 'lodash'
 
 export class DrawHighCardAction implements Action {
     private _value: number;
@@ -71,7 +72,7 @@ class DrawHighCardState implements State {
 
     constructor(isFinal: boolean, hands: Map<Player, number[]>, turn: number, score: number) {
         this._isFinal = isFinal;
-        this._hands = hands;
+        this._hands = _.cloneDeep(hands);
         this._turn = turn;
         this._score = score;
     }
@@ -104,7 +105,10 @@ class DrawHighCardState implements State {
     }
     toString(): string {
         //TODO add chance event when we implement it
-        return `Turn ${this._turn}, score: ${this._score}, hands: ${this._hands}${this._isFinal ? ' DONE!!': ''}`;
+        return `Turn ${this._turn}, score: ${this._score}, 
+            min hand: ${this._hands.get('min').join(',')},
+            max hand: ${this._hands.get('max').join(',')}
+            ${this._isFinal ? ' DONE!!': ''}`;
     }
     toJSON(): {hands: Map<Player, number[]>, turn: number, score: number, isFinal: boolean} {
         //TODO add chance event when we implement it
