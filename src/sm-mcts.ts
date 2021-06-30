@@ -1,4 +1,5 @@
 import * as moment from 'moment';
+import { rootCertificates } from 'tls';
 
 /**
  * generate a random integer between min and max
@@ -147,7 +148,7 @@ class MonteCarloNode {
     }
 
     get isRoot(): boolean {
-        return this._state.hash === this._parent.hash;
+        return !this._parent;
     }
 
     get isFinalState(): boolean {
@@ -177,12 +178,14 @@ class MonteCarloTree {
         let maxSimulations: number = -1;
         let maxSimulationActions: SimultaneousAction[];
         for (const simulAction of root.possibleSimultActions) {
-            const simulations = root.getChild(simulAction).numberOfVisits;
-            if (simulations == maxSimulations) {
-                maxSimulationActions.push(simulAction);
-            } else if (simulations > maxSimulations) {
-                maxSimulationActions = [simulAction];
-                maxSimulations = simulations;
+            if (root.hasChild(simulAction)) {
+                const simulations = root.getChild(simulAction).numberOfVisits;
+                if (simulations == maxSimulations) {
+                    maxSimulationActions.push(simulAction);
+                } else if (simulations > maxSimulations) {
+                    maxSimulationActions = [simulAction];
+                    maxSimulations = simulations;
+                }
             }
         }
 
@@ -198,7 +201,7 @@ class MonteCarloTree {
     goToChildState(simultActions: SimultaneousAction, state: State): void {
         this._currentNode = this.currentNode.hasChild(simultActions) ?
             this.currentNode.getChild(simultActions) :
-            new MonteCarloNode(state, simultActions);
+            new MonteCarloNode(state, simultActions, this.currentNode);
 
         if (!this._nodes.has(this.currentNode.hash)) {
             this._nodes.set(this.currentNode.hash, this.currentNode)
@@ -219,7 +222,7 @@ const DEFAULT_SIMULATION_TIMEOUT_SECONDS = 60 * 60; //1 hour
 
 export class SmMCTS {
     private _sim: Simulator;
-    private _tree: MonteCarloTree;
+    readonly _tree: MonteCarloTree;
     private _players: Set<Player>;
     private _explorationCoefficient: number;
     private _simulationsRan: number;
@@ -231,6 +234,10 @@ export class SmMCTS {
         this._explorationCoefficient = explorationCoefficient === undefined ? DEFAULT_EXPLORATION_COEFFICIENT : explorationCoefficient;
         this._simulationsRan = 0;
     }
+
+    get simulationsRan(): number {
+        return this._simulationsRan;
+    };
 
     runSimulations(numberOfSimulations: number, timeBudgetSeconds?: number): SimultaneousAction {
         const targetSimulations: number = this._simulationsRan + numberOfSimulations;
@@ -339,7 +346,8 @@ export class SmMCTS {
             const moves = [...this._sim.state.possibleSimultaneousActions];
             this._sim.choose(moves[randomInt(0, moves.length - 1)]);
             this._sim.runSimultaneousAction();
-        }
+        }        
+        this._simulationsRan++;
         return this._sim.getReward();
     }
 }
