@@ -298,10 +298,11 @@ export class SmMCTS {
             const simultAction: SimultaneousAction = this._select();
             //move to next state for selected simultAction (via sim)
             this._sim.choose(simultAction);
-            this._sim.runSimultaneousAction();
             if (this._sim.state.awaitsChance()) {
                 //we need to be on the chance node on the next simulation() call
-                this._tree.goToChildState(this._sim.getPreviousSimultaneousAction(), this._sim.state);
+                this._tree.goToChildState(simultAction, this._sim.state);
+            } else {
+                this._sim.runSimultaneousAction();
             }
             // save state hash for updating
             const stateHash: string = this._sim.state.hash;

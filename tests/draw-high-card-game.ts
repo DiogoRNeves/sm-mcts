@@ -69,12 +69,17 @@ class DrawHighCardState implements State {
     private _hands: Map<Player, number[]>;
     private _turn: number;
     private _score: number;
+    private _selectedSimulAction?: DrawHighCardFullAction;
+    private _canDouble: boolean;
 
-    constructor(isFinal: boolean, hands: Map<Player, number[]>, turn: number, score: number) {
+    constructor(isFinal: boolean, hands: Map<Player, number[]>, turn: number, 
+        score: number, chanceToDouble: number, selectedFullAction?: DrawHighCardFullAction) {
         this._isFinal = isFinal;
         this._hands = _.cloneDeep(hands);
         this._turn = turn;
         this._score = score;
+        this._selectedSimulAction = selectedFullAction;
+        this._canDouble = chanceToDouble > 0;
     }
 
     get hash(): string {
@@ -110,18 +115,19 @@ class DrawHighCardState implements State {
             max hand: ${this._hands.get('max').join(',')}
             ${this._isFinal ? ' DONE!!': ''}`;
     }
-    toJSON(): {hands: Map<Player, number[]>, turn: number, score: number, isFinal: boolean} {
+    toJSON(): {hands: Map<Player, number[]>, turn: number, score: number, isFinal: boolean, awaitsChance: boolean} {
         //TODO add chance event when we implement it
         return {
             turn: this._turn,
             score: this._score,
             hands: this._hands,
-            isFinal: this.isFinal()
+            isFinal: this.isFinal(),
+            awaitsChance: this.awaitsChance()
         }
     }
     awaitsChance(): boolean {
         //TODO chance once the chance roll is implemented
-        return false;
+        return this._canDouble && this._selectedSimulAction !== undefined;
     }
 }
 
@@ -168,10 +174,13 @@ export class DrawHighCard implements Simulator {
     }
 
     get state(): DrawHighCardState {
-        return new DrawHighCardState(this.isOver(), this._hands, this._currentTurn, this._score);
+        return new DrawHighCardState(this.isOver(), this._hands, this._currentTurn, 
+            this._score, this._chanceToDouble, this._playLog[this._currentTurn]);
     }
     
     getPreviousSimultaneousAction(): DrawHighCardFullAction {
+        // TODO we must return the rng action instead
+        // need to make a class for it and hash it properly
         return this._playLog[this._currentTurn - 1];
     }
 
@@ -211,9 +220,18 @@ export class DrawHighCard implements Simulator {
         for (const player of play.actions.keys()) {
             this._removeFromHand(player, play.actions.get(player));
         }
-        //TODO insert the chance thing
+
+        const values = [play.actions.get('max').value, play.actions.get('min').value];
+        
+        // double pseudo-randomly
+        for (let i = 0; i < values.length; i++) {
+            if (_.random(1) < this._chanceToDouble) {
+                values[i] *= 2;
+            }
+        }
+        
         //adjust the score
-        this._score += play.actions.get('max').value - play.actions.get('min').value;
+        this._score += values[0] - values[1];
         return this.state;
     }
     private _removeFromHand(player, action: DrawHighCardAction) {
