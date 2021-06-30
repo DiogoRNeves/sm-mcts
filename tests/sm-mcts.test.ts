@@ -37,7 +37,7 @@ describe('basic MTCS - no chance', function() {
 
     it('runs a lot of simulations', function() {
         const game: DrawHighCard = new DrawHighCard(2, 0);
-        const minHand = [3,5,2,6,1,8,9],
+        const minHand = [3,5,2,6,1,4,9],
             maxHand = [4,6,3,2,1];
         game.setHands(new Map<Player, number[]>([
           ['min', minHand],
@@ -49,10 +49,10 @@ describe('basic MTCS - no chance', function() {
         const NUM_SIMS = 5000;
         this.timeout(NUM_SIMS * 100);
 
-        mcts.runSimulations(NUM_SIMS);
+        const result = mcts.runSimulations(NUM_SIMS);
         expect(mcts.simulationsRan).to.equal(NUM_SIMS);
 
-        expect(mcts._tree.getMostSimulatedFirstChildSimultaneousAction().toString(), 'chooses the best play')
+        expect(result.bestAction.toString(), 'chooses the best play')
             .equal('max draws 6\nmin draws 9');
     });
 });

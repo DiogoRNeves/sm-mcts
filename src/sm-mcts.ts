@@ -50,6 +50,20 @@ export interface Simulator {
     restart(): void;
 }
 
+export interface SimulationResult {
+    readonly bestAction: SimultaneousAction;
+    readonly payoff: PayoffStatistics;
+}
+
+export interface PayoffStatistics {
+    min: number;
+    max: number;
+    avg: number;
+    std: number;
+    mode: number;
+    modePath: SimultaneousAction[]; 
+}
+
 class MonteCarloNode {
     private _state: State;
     private _childNodes: Map<string, MonteCarloNode>;
@@ -224,7 +238,7 @@ const DEFAULT_SIMULATION_TIMEOUT_SECONDS = 60 * 60; //1 hour
 
 export class SmMCTS {
     private _sim: Simulator;
-    readonly _tree: MonteCarloTree;
+    private _tree: MonteCarloTree;
     private _players: Set<Player>;
     private _explorationCoefficient: number;
     private _simulationsRan: number;
@@ -241,7 +255,7 @@ export class SmMCTS {
         return this._simulationsRan;
     };
 
-    runSimulations(numberOfSimulations: number, timeBudgetSeconds?: number): SimultaneousAction {
+    runSimulations(numberOfSimulations: number, timeBudgetSeconds?: number): SimulationResult {
         const targetSimulations: number = this._simulationsRan + numberOfSimulations;
         const targetTime: moment.Moment =
             moment().add(timeBudgetSeconds ? timeBudgetSeconds : DEFAULT_SIMULATION_TIMEOUT_SECONDS, 'seconds');
@@ -252,7 +266,19 @@ export class SmMCTS {
             this._tree.backToRoot();
         } while (this._simulationsRan < targetSimulations || moment().isAfter(targetTime));
 
-        return this._tree.getMostSimulatedFirstChildSimultaneousAction();
+        const best: SimultaneousAction = this._tree.getMostSimulatedFirstChildSimultaneousAction();
+
+        return {
+            bestAction: best,
+            payoff: {
+                min: NaN, // TODO
+                max: NaN, // TODO
+                avg: NaN, // TODO
+                std: NaN, // TODO
+                mode: NaN, // TODO
+                modePath: [] // TODO
+            }
+        };
     };
 
     private _simulate(): number {
