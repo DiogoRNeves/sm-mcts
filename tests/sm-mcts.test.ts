@@ -42,10 +42,14 @@ describe('basic MTCS with chance', function() {
 
         const result = mcts.runSimulations(NUM_SIMS);
 
-        writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_withChance.json`, JSON.stringify(mcts.tree), e => {
-            /* istanbul ignore next */
-            if (e) console.log(e.message);
-        });
+        writeFile(
+            `tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_withChance.json`, 
+            JSON.stringify(mcts.tree, null, 4), 
+            e => {
+                /* istanbul ignore next */
+                if (e) console.log(e.message);
+            }
+        );
 
         expect(mcts.simulationsRan).to.equal(NUM_SIMS);
         expect(mcts.tree.root.visits).to.equal(NUM_SIMS);

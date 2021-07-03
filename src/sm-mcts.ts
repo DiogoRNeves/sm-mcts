@@ -345,16 +345,18 @@ export class SmMCTS {
         };
     };
 
-    private _simulate(): void {
+    private _simulate(didRollout?: boolean): void {
         if (this._sim.isOver()) {
-            this._tree.goToChildState(this._sim.getPreviousSimultaneousAction(), this._sim.state);
+            if (!didRollout){
+                this._tree.goToChildState(this._sim.getPreviousSimultaneousAction(), this._sim.state);
+            }
             this._simulationsRan++;
             return this._update(this._sim.getReward());
         }
-
+        
         if (this._sim.state.awaitsChance()) {
             this._tree.goToChildState(this._sim.getPreviousSimultaneousAction(), this._sim.state);
-            const state: State = this._sim.runSimultaneousAction()
+            const state: State = this._sim.runSimultaneousAction();
             return this._simulate();
         }
 
@@ -374,7 +376,7 @@ export class SmMCTS {
             this._tree.goToChildState(this._sim.getPreviousSimultaneousAction(), this._sim.state);
             //do rollout and return result
             this._rollout();
-            return this._simulate();
+            return this._simulate(true);
         }
 
     }
