@@ -53,6 +53,7 @@ export interface Simulator {
 
 export interface SimulationResult {
     readonly bestAction: string;
+    readonly bestActionPath: string[];
     readonly payoff: PayoffStatistics;
 }
 
@@ -103,6 +104,14 @@ class MonteCarloNode {
 
     get possibleSimultActions(): Set<SimultaneousAction> {
         return this._state.possibleSimultaneousActions;
+    }
+
+    get childActions(): string[] {
+        return [...this._childNodes.keys()];
+    }
+
+    hasChilds(): boolean {
+        return this._childNodes.size > 0;
     }
 
     /**
@@ -250,6 +259,9 @@ class MonteCarloTreeFrequencyTable {
             accumulator[1] = singlePayoff > accumulator[1] ? singlePayoff : accumulator[1]; //max
             accumulator[2] += value.payoff; //reward sum
             accumulator[3] += value.numberOfVisits; //reward sum
+            // TODO BUG
+            // we can have various paths leading to the same result!!!!!
+            // therefore we can have multiple mode nodes!!!!
             if (value.numberOfVisits > accumulator[4].numberOfVisits) {
                 accumulator[4] = value;
             }
@@ -304,14 +316,14 @@ class MonteCarloTree {
     private _nodes: Map<string, MonteCarloNode>;
     private _currentNode: MonteCarloNode;
     private _rootHash: string;
-    //maps hash to a string describing the action
-    private _actions: Map<string, string>;
+    //maps hash to a string to an action
+    private _actions: Map<string, SimultaneousAction>;
     
     constructor(state: State) {
         this._currentNode = new MonteCarloNode(state);
         this._rootHash = this._currentNode.hash;
         this._nodes = new Map<string, MonteCarloNode>([[this._rootHash, this._currentNode]]);
-        this._actions = new Map<string, string>();
+        this._actions = new Map<string, SimultaneousAction>();
     }
     
     get currentNode(): MonteCarloNode { return this._currentNode; }
@@ -327,7 +339,7 @@ class MonteCarloTree {
     }
 
     actionDescription(hash: string): string {
-        return this._actions.has(hash) ? this._actions.get(hash) : 'N/A' ;
+        return this._actions.has(hash) ? this._actions.get(hash).toString() : 'N/A' ;
     }
     
     /**
@@ -338,7 +350,7 @@ class MonteCarloTree {
     addAction(action: SimultaneousAction): boolean {
         const exists: boolean = this._actions.has(action.hash);
         if (!exists) {
-            this._actions.set(action.hash, action.toString());
+            this._actions.set(action.hash, action);
         }
         return exists;
     }
@@ -348,22 +360,38 @@ class MonteCarloTree {
     }
 
     getMostSimulatedFirstChildSimultaneousAction(): SimultaneousAction {
-        const root = this._nodes.get(this._rootHash);
+        return this.getMostSimulatedSimultaneousAction();
+    }
+    
+    getMostSimulatedSimultaneousAction(node?: MonteCarloNode): SimultaneousAction {
+        node = node ? node : this._nodes.get(this._rootHash);
         let maxSimulations: number = -1;
         let maxSimulationActions: SimultaneousAction[];
-        for (const simulAction of root.possibleSimultActions) {
-            if (root.hasChild(simulAction)) {
-                const simulations = root.getChild(simulAction).numberOfVisits;
-                if (simulations == maxSimulations) {
-                    maxSimulationActions.push(simulAction);
-                } else if (simulations > maxSimulations) {
-                    maxSimulationActions = [simulAction];
-                    maxSimulations = simulations;
-                }
+        for (const simulAction of node.childActions.map(hash => this._actions.get(hash))) {
+            const simulations = node.getChild(simulAction).numberOfVisits;
+            if (simulations == maxSimulations) {
+                maxSimulationActions.push(simulAction);
+            } else if (simulations > maxSimulations) {
+                maxSimulationActions = [simulAction];
+                maxSimulations = simulations;
             }
         }
+    
+        return maxSimulationActions[0];        
+    }
 
-        return maxSimulationActions[0];
+    getMostSimulatedPath(firstAction?: SimultaneousAction): string[] {
+        let nextAction = firstAction ? firstAction : this.getMostSimulatedFirstChildSimultaneousAction();
+        let node = this._nodes.get(this._rootHash);
+        const actions = [];
+        
+        while (node.hasChilds()) {
+            nextAction = this.getMostSimulatedSimultaneousAction(node);
+            actions.push(nextAction.toString());
+            node = node.getChild(nextAction);
+        }
+
+        return actions;
     }
 
     /**
@@ -438,13 +466,14 @@ export class SmMCTS {
 
         return {
             bestAction: best.toString(),
+            bestActionPath: this._tree.getMostSimulatedPath(best),
             payoff: {
                 min: freqTable.min,
                 max: freqTable.max,
                 avg: freqTable.avg,
                 std: freqTable.std,
                 mode: freqTable.mode,
-                modePath: freqTable.modePath
+                modePath: freqTable.modePath,
             }
         };
     };
