@@ -1,5 +1,5 @@
 import * as moment from 'moment';
-import { random } from 'lodash'
+import * as _ from 'lodash';
 
 
 class MctsTreeNodeObject {
@@ -52,7 +52,7 @@ export interface Simulator {
 }
 
 export interface SimulationResult {
-    readonly bestAction: SimultaneousAction;
+    readonly bestAction: string;
     readonly payoff: PayoffStatistics;
 }
 
@@ -62,7 +62,7 @@ export interface PayoffStatistics {
     avg: number;
     std: number;
     mode: number;
-    modePath: SimultaneousAction[]; 
+    modePath: string[]; 
 }
 
 class MonteCarloNode {
@@ -72,7 +72,7 @@ class MonteCarloNode {
     private _numberOfVisits: number;
     private _payoff: number;
     private _rollouts: number;
-
+    
     constructor(state: State, simultAction?: SimultaneousAction, parent?: MonteCarloNode) {
         this._state = state;
         this._childNodes = new Map<string, MonteCarloNode>();
@@ -84,7 +84,7 @@ class MonteCarloNode {
         this._payoff = 0;
         this._rollouts = 0;
     }
-
+    
     get numberOfVisits(): number {
         return this._numberOfVisits;
     }
@@ -103,6 +103,29 @@ class MonteCarloNode {
 
     get possibleSimultActions(): Set<SimultaneousAction> {
         return this._state.possibleSimultaneousActions;
+    }
+
+    /**
+     *  
+     * @param existingPath for recursive calls to parent
+     * @returns an array of action hashes to be taked to reach this node
+     */
+    actionPath(existingPath?: string[]): string[] {
+        if (this.isRoot) {
+            return existingPath;
+        }
+
+        if (!existingPath) {
+            existingPath = [];
+        }
+
+        existingPath.unshift(this._parent.getActionHashForChild(this).toString());
+        
+        return this._parent.actionPath(existingPath);
+    }
+
+    getActionHashForChild(child: MonteCarloNode): string {
+        return [...this._childNodes.entries()].find((node) => node[1].hash === child.hash)[0];
     }
 
     getNodeObject(tree: MonteCarloTree): MctsTreeNodeObject {
@@ -206,28 +229,107 @@ class MonteCarloNode {
     } 
 }
 
+class MonteCarloTreeFrequencyTable {
+    private _leafNodes: MonteCarloNode[];
+    private _min: number;
+    private _max: number;
+    private _visits: number;
+    private _rewardSum: number;
+    private _avg: number;
+    private _var: number;
+    private _modeNode: MonteCarloNode;
+    private _tree: MonteCarloTree;
+
+    constructor(tree: MonteCarloTree) {
+        this._leafNodes = _.cloneDeep(tree.leaves);
+        this._tree = tree;
+
+        [this._min, this._max, this._rewardSum, this._visits, this._modeNode] = this._leafNodes.reduce((accumulator, value) => {
+            const singlePayoff = value.payoff / value.numberOfVisits;
+            accumulator[0] = singlePayoff < accumulator[0] ? singlePayoff : accumulator[0]; //min
+            accumulator[1] = singlePayoff > accumulator[1] ? singlePayoff : accumulator[1]; //max
+            accumulator[2] += value.payoff; //reward sum
+            accumulator[3] += value.numberOfVisits; //reward sum
+            if (value.numberOfVisits > accumulator[4].numberOfVisits) {
+                accumulator[4] = value;
+            }
+            return accumulator;
+        }, [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, 0, this._leafNodes[0]]); 
+
+        this._avg = this._rewardSum / this._visits;
+
+    }
+
+    get frequencyTable(): {[key: string]: {frequency: number, value: number}} {
+        throw Object.fromEntries(
+            this._leafNodes.map(n => [n.hash, {frequency: n.numberOfVisits, value: n.payoff / n.numberOfVisits}])
+        );
+    }
+
+    get avg(): number {
+        return this._avg;
+    }
+
+    get max(): number {
+        return this._max;
+    }
+
+    get min(): number {
+        return this._min;
+    }
+
+    get var(): number {
+        if (!this._var) {
+            this._var = this._leafNodes.reduce(
+                (sum, node) => sum + Math.pow(node.payoff / node.numberOfVisits - this._avg, 2) * node.numberOfVisits
+            , 0) / this._visits;
+        }
+        return this._var;
+    } 
+
+    get std(): number {
+        return Math.sqrt(this.var);
+    }
+
+    get mode(): number {
+        return this._modeNode ? this._modeNode.payoff / this._modeNode.numberOfVisits : NaN;
+    }
+
+    get modePath(): string[] {
+        return this._modeNode ? this._modeNode.actionPath().map(hash => this._tree.actionDescription(hash)) : [];
+    }
+}
+
 class MonteCarloTree {
     private _nodes: Map<string, MonteCarloNode>;
     private _currentNode: MonteCarloNode;
     private _rootHash: string;
     //maps hash to a string describing the action
     private _actions: Map<string, string>;
-
+    
     constructor(state: State) {
         this._currentNode = new MonteCarloNode(state);
         this._rootHash = this._currentNode.hash;
         this._nodes = new Map<string, MonteCarloNode>([[this._rootHash, this._currentNode]]);
         this._actions = new Map<string, string>();
     }
+    
+    get currentNode(): MonteCarloNode { return this._currentNode; }
+    
+    get root(): MonteCarloNode { return this._nodes.get(this._rootHash); }
 
-    get currentNode() { return this._currentNode; }
-
-    get root() { return this._nodes.get(this._rootHash); }
+    get leaves(): MonteCarloNode[] { 
+        return [...this._nodes.values()].filter(node => node.isFinalState);
+    }
+    
+    getFrequencyTable(): MonteCarloTreeFrequencyTable {
+        return new MonteCarloTreeFrequencyTable(this);
+    }
 
     actionDescription(hash: string): string {
         return this._actions.has(hash) ? this._actions.get(hash) : 'N/A' ;
     }
-
+    
     /**
      * adds the action to the internal translation list
      * @param action te action to add
@@ -332,15 +434,17 @@ export class SmMCTS {
 
         const best: SimultaneousAction = this._tree.getMostSimulatedFirstChildSimultaneousAction();
 
+        const freqTable: MonteCarloTreeFrequencyTable = this._tree.getFrequencyTable();
+
         return {
-            bestAction: best,
+            bestAction: best.toString(),
             payoff: {
-                min: NaN, // TODO
-                max: NaN, // TODO
-                avg: NaN, // TODO
-                std: NaN, // TODO
-                mode: NaN, // TODO
-                modePath: [] // TODO
+                min: freqTable.min,
+                max: freqTable.max,
+                avg: freqTable.avg,
+                std: freqTable.std,
+                mode: freqTable.mode,
+                modePath: freqTable.modePath
             }
         };
     };
@@ -412,7 +516,7 @@ export class SmMCTS {
 
             //tie break max utcs with random action
             const bestPlayerAction = bestPlayerActions[
-                bestPlayerActions.length > 1 ? random(0, bestPlayerActions.length - 1) : 0
+                bestPlayerActions.length > 1 ? _.random(0, bestPlayerActions.length - 1) : 0
             ];
 
             bestActions.set(player, bestPlayerAction);
@@ -438,7 +542,7 @@ export class SmMCTS {
     private _rollout(): void {
         while (!this._sim.isOver()) {
             const moves = [...this._sim.state.possibleSimultaneousActions];
-            this._sim.choose(moves[random(0, moves.length - 1)]);
+            this._sim.choose(moves[_.random(0, moves.length - 1)]);
             this._sim.runSimultaneousAction();
         }
         this.currentNode.addRollout();

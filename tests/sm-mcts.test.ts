@@ -4,11 +4,6 @@ import { DrawHighCard } from './draw-high-card-game';
 import { writeFile } from 'fs';
 import * as moment from 'moment';
 
-/*
-    TODO:
-    everyone has exactly one rollout per child (leaves have no childs)
-*/
-
 describe('basic MTCS with chance', function() {
     it('runs 10 simulations', function() {
         const game: DrawHighCard = new DrawHighCard(3, 0.1);
@@ -50,6 +45,13 @@ describe('basic MTCS with chance', function() {
                 if (e) console.log(e.message);
             }
         );
+
+        
+        writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_results_withChance.json`, 
+            JSON.stringify(result, null, 4), e => {
+                /* istanbul ignore if */
+                if (e) console.log(e.message);
+        });
 
         expect(mcts.simulationsRan).to.equal(NUM_SIMS);
         expect(mcts.tree.root.visits).to.equal(NUM_SIMS);
@@ -135,9 +137,16 @@ describe('basic MTCS - no chance', function() {
         }
 
         
-        writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_withoutChance.json`, JSON.stringify(mcts.tree), e => {
-            /* istanbul ignore if */
-            if (e) console.log(e.message);
+        writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_withoutChance.json`, 
+            JSON.stringify(mcts.tree, null, 4), e => {
+                /* istanbul ignore if */
+                if (e) console.log(e.message);
+        });
+
+        writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_results_withoutChance.json`, 
+            JSON.stringify(result, null, 4), e => {
+                /* istanbul ignore if */
+                if (e) console.log(e.message);
         });
         
         expect(mcts.simulationsRan, 'simulation ran').to.equal(NUM_SIMS);
