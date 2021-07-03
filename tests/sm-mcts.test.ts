@@ -43,6 +43,7 @@ describe('basic MTCS with chance', function() {
         const result = mcts.runSimulations(NUM_SIMS);
 
         writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_withChance.json`, JSON.stringify(mcts.tree), e => {
+            /* istanbul ignore next */
             if (e) console.log(e.message);
         });
 
@@ -131,6 +132,7 @@ describe('basic MTCS - no chance', function() {
 
         
         writeFile(`tests/json_outputs/${moment().format('YYYYMMDDHHmmssSSS')}_withoutChance.json`, JSON.stringify(mcts.tree), e => {
+            /* istanbul ignore if */
             if (e) console.log(e.message);
         });
         

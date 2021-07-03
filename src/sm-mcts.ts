@@ -172,10 +172,12 @@ class MonteCarloNode {
 
     getSimultaneousAction(actions: Map<Player, Action>): SimultaneousAction | undefined {
         const act = this.possibleSimultActions;
+        /* istanbul ignore if */
         if (act.size == 0) {
             throw new Error(`no possible actions for node ${this.hash}`)
         }
         return [...act].find(simulAction => {
+            /* istanbul ignore if */
             if (simulAction.actions.size !== actions.size) {
                 return false;
             }
@@ -269,8 +271,8 @@ class MonteCarloTree {
      * @param state the state we want to move to. Will be created if it doesnt exist.
      */
     goToChildState(simultActions: SimultaneousAction, state: State): void {
-        this._currentNode = this.currentNode.hasChild(simultActions) ? //this.hasState(state) ?
-            this.currentNode.getChild(simultActions) : //this._nodes.get(state.hash) : 
+        this._currentNode = this.currentNode.hasChild(simultActions) ? 
+            this.currentNode.getChild(simultActions) : 
             new MonteCarloNode(state, simultActions, this.currentNode);
         
         this.addAction(simultActions);
@@ -418,6 +420,7 @@ export class SmMCTS {
     }
 
     static UCT(player: Player, payoff: number, actionVisits: number, numberOfVisits: number, explorationCoefficient: number): number {
+        /* istanbul ignore if */
         if (!actionVisits || !numberOfVisits) {
             throw new Error(`Can't use UCT if there are no visits on the action or on the node.`)
         }

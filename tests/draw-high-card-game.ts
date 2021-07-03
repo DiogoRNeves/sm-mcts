@@ -209,6 +209,7 @@ export class DrawHighCard implements Simulator {
     }
 
     choose(simultAction: DrawHighCardFullAction): void {
+        /* istanbul ignore if */
         if (this._playLog[this._currentTurn]) {
             throw new Error('play has already been chosen');
         }
