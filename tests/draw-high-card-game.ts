@@ -64,6 +64,18 @@ export class DrawHighCardFullAction implements SimultaneousAction {
     
 }
 
+class DrawHighCardRngFullAction extends DrawHighCardFullAction {
+    private doubled: Player[];
+    constructor(actions: DrawHighCardFullAction, doubled: Player[]) {
+        super(actions.actions);
+        this.doubled = _.cloneDeep(doubled);
+    }
+
+    toString(): string {
+        return super.toString() + `\ndoubled: ${this.doubled.length ? this.doubled.join(',') : 'none' }`
+    }
+}
+
 class DrawHighCardState implements State {
     private _isFinal: boolean;
     private _hands: Map<Player, number[]>;
@@ -110,13 +122,13 @@ class DrawHighCardState implements State {
     }
     toString(): string {
         //TODO add chance event when we implement it
-        return `Turn ${this._turn}, score: ${this._score}, 
-            min hand: ${this._hands.get('min').join(',')},
-            max hand: ${this._hands.get('max').join(',')}
-            ${this._isFinal ? ' DONE!!': ''}`;
+        return `Turn ${this._turn}, score: ${this._score},` + 
+            `\nmin hand: ${this._hands.get('min').join(',')},` +
+            `\nmax hand: ${this._hands.get('max').join(',')},` +
+            `\naction: ${ this._selectedSimulAction ? this._selectedSimulAction.toString() : 'not selected' },` +
+            `\n${this._isFinal ? ' DONE!!': ''}`; 
     }
     toJSON(): {hands: Map<Player, number[]>, turn: number, score: number, isFinal: boolean, awaitsChance: boolean} {
-        //TODO add chance event when we implement it
         return {
             turn: this._turn,
             score: this._score,
@@ -126,8 +138,9 @@ class DrawHighCardState implements State {
         }
     }
     awaitsChance(): boolean {
-        //TODO chance once the chance roll is implemented
-        return this._canDouble && this._selectedSimulAction !== undefined;
+        return this._canDouble && 
+            !!this._selectedSimulAction && 
+            !(this._selectedSimulAction instanceof DrawHighCardRngFullAction);
     }
 }
 
@@ -147,10 +160,11 @@ export class DrawHighCard implements Simulator {
     private _maxTurns: number;
     private _chanceToDouble: number;
     private _score: number;
-    private _playLog: DrawHighCardFullAction[];
+    private _playLog:  DrawHighCardFullAction[];
     private _currentTurn: number;
     private _rngSeed: number;
     private _initialHands: Map<Player, number[]>;
+
 
     /**
      * 
@@ -179,9 +193,7 @@ export class DrawHighCard implements Simulator {
     }
     
     getPreviousSimultaneousAction(): DrawHighCardFullAction {
-        // TODO we must return the rng action instead
-        // need to make a class for it and hash it properly
-        return this._playLog[this._currentTurn - 1];
+        return this._playLog[ this._currentTurn - (this.state.awaitsChance() ? 0 : 1)];
     }
 
     isOver(): boolean {
@@ -197,6 +209,9 @@ export class DrawHighCard implements Simulator {
     }
 
     choose(simultAction: DrawHighCardFullAction): void {
+        if (this._playLog[this._currentTurn]) {
+            throw new Error('play has already been chosen');
+        }
         this._playLog[this._currentTurn] = simultAction;
     }
 
@@ -214,24 +229,32 @@ export class DrawHighCard implements Simulator {
     runSimultaneousAction(): DrawHighCardState {
         //add to log
         const play: DrawHighCardFullAction = this._playLog[this._currentTurn];
-        //increase turn count
-        this._currentTurn++;
         //remove numbers from players' hands
         for (const player of play.actions.keys()) {
             this._removeFromHand(player, play.actions.get(player));
         }
 
         const values = [play.actions.get('max').value, play.actions.get('min').value];
-        
-        // double pseudo-randomly
-        for (let i = 0; i < values.length; i++) {
-            if (_.random(1) < this._chanceToDouble) {
-                values[i] *= 2;
+        if (this._chanceToDouble > 0) {
+            const rng: Player[] = [];
+            // double pseudo-randomly
+            for (let i = 0; i < values.length; i++) {
+                if (_.random(0, 1, true) < this._chanceToDouble) {
+                    values[i] *= 2;
+                    rng.push(i == 0 ? 'max' : 'min');
+                }
             }
+            
+            //update play with rng info, if applicable
+            this._playLog[this._currentTurn] = new DrawHighCardRngFullAction(play, rng);
         }
-        
+
         //adjust the score
         this._score += values[0] - values[1];
+
+        //increase turn count
+        this._currentTurn++
+
         return this.state;
     }
     private _removeFromHand(player, action: DrawHighCardAction) {

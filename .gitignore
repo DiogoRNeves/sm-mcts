@@ -20,6 +20,9 @@ public/css/main.css
 coverage
 .nyc_output
 
+#test outputs
+tests/json_outputs
+
 # API keys and secrets
 .env
 
